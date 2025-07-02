@@ -150,7 +150,7 @@ fun TimeEntryRow(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = "${entry.startTime.format(timeFormatter)} - ${entry.endTime.format(timeFormatter)}",
+                text = "${entry.startTime.format(timeFormatter)} - ${entry.endTime?.format(timeFormatter) ?: "In Progress"}",
                 style = MaterialTheme.typography.bodySmall
             )
             Text(

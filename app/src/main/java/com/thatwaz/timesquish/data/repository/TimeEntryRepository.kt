@@ -39,4 +39,13 @@ class TimeEntryRepository @Inject constructor(
     suspend fun setSubmitted(id: Int, isSubmitted: Boolean) {
         dao.setSubmitted(id, isSubmitted)
     }
+
+    suspend fun getActiveSession(): TimeEntry? {
+        return dao.getActiveSession()
+    }
+
+    suspend fun completeSession(id: Int, endTime: LocalDateTime, duration: Long) {
+        dao.completeSession(id, endTime, duration)
+    }
+
 }

@@ -10,9 +10,9 @@ data class TimeEntry(
     val id: Int = 0,
 
     val startTime: LocalDateTime,
-    val endTime: LocalDateTime,
+    val endTime: LocalDateTime? = null,
+    val durationMinutes: Long? = null,
 
-    val durationMinutes: Long,
 
     val isManual: Boolean = false,
     val isSubmitted: Boolean = false,

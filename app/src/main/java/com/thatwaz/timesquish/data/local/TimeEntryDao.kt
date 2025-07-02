@@ -32,4 +32,11 @@ interface TimeEntryDao {
 
     @Query("UPDATE time_entries SET isSubmitted = :isSubmitted WHERE id = :id")
     suspend fun setSubmitted(id: Int, isSubmitted: Boolean)
+
+    @Query("SELECT * FROM time_entries WHERE endTime IS NULL LIMIT 1")
+    suspend fun getActiveSession(): TimeEntry?
+
+    @Query("UPDATE time_entries SET endTime = :endTime, durationMinutes = :duration WHERE id = :id")
+    suspend fun completeSession(id: Int, endTime: LocalDateTime, duration: Long)
+
 }

@@ -23,8 +23,11 @@ object AppModule {
             app,
             TimeSquishDatabase::class.java,
             "time_squish_db"
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
+
 
 
     @Provides

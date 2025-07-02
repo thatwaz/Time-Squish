@@ -11,6 +11,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -23,9 +24,17 @@ import com.thatwaz.timesquish.ui.viewmodel.TimeEntryViewModel
 fun HomeScreen(
     viewModel: TimeEntryViewModel = hiltViewModel(),
     onNavigateToWeekView: () -> Unit,
-    onNavigateToManualEntry: () -> Unit
+    onNavigateToManualEntry: () -> Unit,
+    onNavigateToActiveSession: () -> Unit
 ) {
-    val isClockedIn by viewModel.isClockedIn.collectAsState()
+    val activeSession by viewModel.activeSession.collectAsState()
+
+    // Auto-navigate if already clocked in
+    LaunchedEffect(activeSession) {
+        if (activeSession != null) {
+            onNavigateToActiveSession()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -35,7 +44,7 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (isClockedIn) "You are clocked in." else "You are clocked out.",
+            text = if (activeSession != null) "You are clocked in." else "You are clocked out.",
             style = MaterialTheme.typography.headlineSmall
         )
 
@@ -43,15 +52,16 @@ fun HomeScreen(
 
         Button(
             onClick = {
-                if (isClockedIn) {
+                if (activeSession != null) {
                     viewModel.clockOut()
                 } else {
                     viewModel.clockIn()
+                    // No manual navigation needed; LaunchedEffect will navigate automatically
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = if (isClockedIn) "Clock Out" else "Clock In")
+            Text(text = if (activeSession != null) "Clock Out" else "Clock In")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -73,3 +83,4 @@ fun HomeScreen(
         }
     }
 }
+

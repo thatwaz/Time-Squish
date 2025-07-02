@@ -20,6 +20,16 @@ class TimeEntryViewModel @Inject constructor(
     private val repository: TimeEntryRepository
 ) : ViewModel() {
 
+    private val _activeSession = MutableStateFlow<TimeEntry?>(null)
+    val activeSession = _activeSession.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _activeSession.value = repository.getActiveSession()
+        }
+    }
+
+
     // All entries, sorted newest first
     val allEntries = repository.getAllEntries()
         .stateIn(
@@ -76,21 +86,29 @@ class TimeEntryViewModel @Inject constructor(
     private var clockInTime: LocalDateTime? = null
 
     fun clockIn() {
-        clockInTime = LocalDateTime.now()
-        _isClockedIn.value = true
+        viewModelScope.launch {
+            val start = LocalDateTime.now()
+            val entry = TimeEntry(
+                startTime = start,
+                endTime = null,
+                durationMinutes = null
+            )
+            repository.insertTimeEntry(entry)
+            _activeSession.value = repository.getActiveSession()
+        }
     }
 
     fun clockOut() {
-        clockInTime?.let { start ->
-            val end = LocalDateTime.now()
-            insertTimeEntry(
-                startTime = start,
-                endTime = end,
-                isManual = false
-            )
+        viewModelScope.launch {
+            val session = _activeSession.value
+            if (session != null) {
+                val end = LocalDateTime.now()
+                val duration = java.time.Duration.between(session.startTime, end).toMinutes()
+                repository.completeSession(session.id, end, duration)
+                _activeSession.value = null
+            }
         }
-        clockInTime = null
-        _isClockedIn.value = false
     }
+
 
 }
