@@ -21,8 +21,13 @@ interface TimeEntryDao {
     @Delete
     suspend fun deleteTimeEntry(entry: TimeEntry)
 
-    @Query("SELECT * FROM time_entries ORDER BY startTime DESC")
+
+    @Query("SELECT * FROM time_entries WHERE isHidden = 0 ORDER BY startTime DESC")
     fun getAllEntries(): Flow<List<TimeEntry>>
+
+    @Query("SELECT * FROM time_entries ORDER BY startTime DESC")
+    suspend fun getAllEntriesIncludingHidden(): List<TimeEntry>
+
 
     @Query("SELECT * FROM time_entries WHERE isSubmitted = 0 ORDER BY startTime DESC")
     fun getUnsubmittedEntries(): Flow<List<TimeEntry>>

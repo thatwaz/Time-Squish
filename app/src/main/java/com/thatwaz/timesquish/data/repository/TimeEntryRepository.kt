@@ -48,4 +48,9 @@ class TimeEntryRepository @Inject constructor(
         dao.completeSession(id, endTime, duration)
     }
 
+    suspend fun getAllEntriesIncludingHidden(): List<TimeEntry> {
+        return dao.getAllEntriesIncludingHidden()
+    }
+
+
 }

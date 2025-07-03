@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,18 +44,26 @@ fun WeekViewScreen(
     val thisWeekStart = getStartOfWeek(LocalDateTime.now())
     val entries by viewModel.allEntries.collectAsState()
 
+    // NEW STATE
+    var isSelectingForSquish by remember { mutableStateOf(false) }
+    val selectedEntryIds = remember { mutableStateListOf<Int>() }
 
-
-    // Filter entries to the current week
+    // Filter entries to current week
     val weekEntries = entries.filter { entry ->
         entry.startTime.isAfter(currentWeekStart.minusNanos(1)) &&
                 entry.startTime.isBefore(getEndOfWeek(currentWeekStart).plusNanos(1))
     }
 
-    // Group by day of week
-    val groupedEntries = weekEntries
+    val unsubmittedEntries = weekEntries.filter { !it.isSubmitted }
+    val submittedEntries = weekEntries.filter { it.isSubmitted }
+
+    val unsubmittedGrouped = unsubmittedEntries
         .groupBy { it.startTime.dayOfWeek }
-        .toSortedMap() // Sorts Sunday -> Saturday
+        .toSortedMap()
+
+    val submittedGrouped = submittedEntries
+        .groupBy { it.startTime.dayOfWeek }
+        .toSortedMap()
 
     Column(
         modifier = Modifier
@@ -67,7 +76,6 @@ fun WeekViewScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Always show Previous button
             Button(onClick = {
                 currentWeekStart = currentWeekStart.minusWeeks(1)
             }) {
@@ -79,7 +87,6 @@ fun WeekViewScreen(
                 style = MaterialTheme.typography.titleMedium
             )
 
-            // Only show Next button if NOT on the current week
             if (currentWeekStart.isBefore(thisWeekStart)) {
                 Button(onClick = {
                     currentWeekStart = currentWeekStart.plusWeeks(1)
@@ -87,15 +94,13 @@ fun WeekViewScreen(
                     Text("Next Week >")
                 }
             } else {
-                // Spacer to balance layout
                 Spacer(modifier = Modifier.width(8.dp))
             }
         }
 
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (groupedEntries.isEmpty()) {
+        if (weekEntries.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -104,25 +109,137 @@ fun WeekViewScreen(
             }
         } else {
             LazyColumn {
-                groupedEntries.forEach { (dayOfWeek, entriesForDay) ->
-                    // Day header
+                // Unsubmitted section header
+                item {
+                    Text(
+                        text = "Unsubmitted Entries",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                if (unsubmittedGrouped.isEmpty()) {
                     item {
                         Text(
-                            text = dayOfWeek.name.lowercase()
-                                .replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "No unsubmitted entries.",
+                            style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    // Entries for this day
-                    items(entriesForDay) { entry ->
-                        TimeEntryRow(
-                            entry = entry,
-                            onSetSubmitted = { isSubmitted ->
-                                viewModel.setSubmitted(entry.id, isSubmitted)
+                } else {
+                    unsubmittedGrouped.forEach { (dayOfWeek, entriesForDay) ->
+                        item {
+                            val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
+                            val dateText = entriesForDay.first().startTime.format(dateFormatter)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "${dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }} - $dateText",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                if (entriesForDay.size > 1) {
+                                    Button(
+                                        onClick = {
+                                            isSelectingForSquish = !isSelectingForSquish
+                                            selectedEntryIds.clear()
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp)
+                                    ) {
+                                        Text(if (isSelectingForSquish) "Cancel Selection" else "Select Entries to Squish")
+                                    }
+                                }
                             }
+                        }
+                        items(entriesForDay) { entry ->
+                            TimeEntryRow(
+                                entry = entry,
+                                onSetSubmitted = { isSubmitted ->
+                                    viewModel.setSubmitted(entry.id, isSubmitted)
+                                },
+                                onUnsquish = if (entry.label == "Squished Block") {
+                                    {
+                                        viewModel.unsquishEntryByDate(entry)
+                                    }
+                                } else {
+                                    null
+                                },
+                                showSelectCheckbox = isSelectingForSquish,
+                                isSelected = selectedEntryIds.contains(entry.id),
+                                onSelectChanged = { checked ->
+                                    if (checked) {
+                                        selectedEntryIds.add(entry.id)
+                                    } else {
+                                        selectedEntryIds.remove(entry.id)
+                                    }
+                                }
+                            )
+                            Divider()
+                        }
+                    }
+
+                    // Squish Selected button
+                    if (isSelectingForSquish && selectedEntryIds.isNotEmpty()) {
+                        item {
+                            Button(
+                                onClick = {
+                                    val entriesToSquish = entries.filter { selectedEntryIds.contains(it.id) }
+                                    viewModel.squishEntries(entriesToSquish)
+                                    isSelectingForSquish = false
+                                    selectedEntryIds.clear()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text("Squish Selected Entries")
+                            }
+                        }
+                    }
+                }
+
+                // Submitted section header
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Submitted Entries",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                if (submittedGrouped.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No submitted entries.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
-                        Divider()
+                    }
+                } else {
+                    submittedGrouped.forEach { (dayOfWeek, entriesForDay) ->
+                        item {
+                            val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
+                            val dateText = entriesForDay.first().startTime.format(dateFormatter)
+                            Text(
+                                text = "${dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }} - $dateText",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(entriesForDay) { entry ->
+                            TimeEntryRow(
+                                entry = entry,
+                                onSetSubmitted = { isSubmitted ->
+                                    viewModel.setSubmitted(entry.id, isSubmitted)
+                                }
+                            )
+                            Divider()
+                        }
                     }
                 }
             }
@@ -133,7 +250,11 @@ fun WeekViewScreen(
 @Composable
 fun TimeEntryRow(
     entry: TimeEntry,
-    onSetSubmitted: (Boolean) -> Unit
+    onSetSubmitted: (Boolean) -> Unit,
+    onUnsquish: (() -> Unit)? = null,
+    showSelectCheckbox: Boolean = false,
+    isSelected: Boolean = false,
+    onSelectChanged: ((Boolean) -> Unit)? = null
 ) {
     val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -144,9 +265,11 @@ fun TimeEntryRow(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
-                text = "${entry.startTime.format(dateFormatter)}",
+                text = entry.startTime.format(dateFormatter),
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
@@ -154,7 +277,7 @@ fun TimeEntryRow(
                 style = MaterialTheme.typography.bodySmall
             )
             Text(
-                text = "Duration: ${entry.durationMinutes} min",
+                text = "Duration: ${entry.durationMinutes ?: "..."} min",
                 style = MaterialTheme.typography.bodySmall
             )
             if (!entry.label.isNullOrBlank()) {
@@ -163,10 +286,28 @@ fun TimeEntryRow(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            // If this is a squished block, show Unsquish button
+            if (entry.label == "Squished Block" && onUnsquish != null) {
+                Button(
+                    onClick = onUnsquish,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Text("Unsquish")
+                }
+            }
         }
-        Checkbox(
-            checked = entry.isSubmitted,
-            onCheckedChange = onSetSubmitted
-        )
+        if (showSelectCheckbox && onSelectChanged != null) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = onSelectChanged
+            )
+        } else {
+            Checkbox(
+                checked = entry.isSubmitted,
+                onCheckedChange = onSetSubmitted
+            )
+        }
     }
 }
+
+

@@ -1,6 +1,7 @@
 package com.thatwaz.timesquish.ui.viewmodel
 
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.thatwaz.timesquish.data.local.TimeEntry
@@ -109,6 +110,72 @@ class TimeEntryViewModel @Inject constructor(
             }
         }
     }
+
+    fun squishEntries(entriesToSquish: List<TimeEntry>) {
+        viewModelScope.launch {
+            if (entriesToSquish.isEmpty()) return@launch
+
+            val startTime = entriesToSquish.minBy { it.startTime }.startTime
+            val endTime = entriesToSquish.maxBy { it.endTime ?: it.startTime }.endTime
+                ?: LocalDateTime.now()
+            val duration = java.time.Duration.between(startTime, endTime).toMinutes()
+
+            val squishedEntry = TimeEntry(
+                startTime = startTime,
+                endTime = endTime,
+                durationMinutes = duration,
+                isManual = true,
+                isSubmitted = false,
+                label = "Squished Block"
+            )
+
+            // Insert the squished entry
+            repository.insertTimeEntry(squishedEntry)
+
+            // ✅ Correctly mark originals hidden by updating them
+            entriesToSquish.forEach {
+                repository.updateTimeEntry(it.copy(isHidden = true))
+            }
+        }
+    }
+
+
+    fun unsquishEntry(squishedEntry: TimeEntry, originals: List<TimeEntry>) {
+        viewModelScope.launch {
+            repository.deleteTimeEntry(squishedEntry)
+
+            originals.forEach {
+                Log.d("UNSQUISH", "Unhiding ID=${it.id}")
+                repository.updateTimeEntry(it.copy(isHidden = false))
+            }
+        }
+    }
+
+    fun unsquishEntryByDate(squishedEntry: TimeEntry) {
+        viewModelScope.launch {
+            // Get all entries including hidden ones
+            val allEntries = repository.getAllEntriesIncludingHidden()
+            // Find the originals
+            val originals = allEntries.filter {
+                it.isHidden && it.startTime.toLocalDate() == squishedEntry.startTime.toLocalDate()
+            }
+
+            // Log what you found
+            originals.forEach {
+                Log.d("UNSQUISH", "Unhiding ID=${it.id}")
+            }
+
+            // Remove the squished record
+            repository.deleteTimeEntry(squishedEntry)
+            // Mark originals as visible
+            originals.forEach {
+                repository.updateTimeEntry(it.copy(isHidden = false))
+            }
+        }
+    }
+
+
+
 
 
 }

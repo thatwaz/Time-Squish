@@ -12,11 +12,11 @@ data class TimeEntry(
     val startTime: LocalDateTime,
     val endTime: LocalDateTime? = null,
     val durationMinutes: Long? = null,
-
-
     val isManual: Boolean = false,
     val isSubmitted: Boolean = false,
-    val label: String? = null
+    val label: String? = null,
+    val isHidden: Boolean = false
+
 
 
 )
