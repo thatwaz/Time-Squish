@@ -12,15 +12,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+
+
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,10 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.maps.model.Circle
 import com.thatwaz.timesquish.data.local.TimeEntry
 import com.thatwaz.timesquish.ui.viewmodel.TimeEntryViewModel
 import com.thatwaz.timesquish.util.getEndOfWeek
 import com.thatwaz.timesquish.util.getStartOfWeek
+import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -44,9 +52,9 @@ fun WeekViewScreen(
     val thisWeekStart = getStartOfWeek(LocalDateTime.now())
     val entries by viewModel.allEntries.collectAsState()
 
-    // NEW STATE
-    var isSelectingForSquish by remember { mutableStateOf(false) }
-    val selectedEntryIds = remember { mutableStateListOf<Int>() }
+    // Store per-day selection state
+    val selectingDays = remember { mutableStateOf(setOf<DayOfWeek>()) }
+    val selectedEntryIdsByDay = remember { mutableStateOf(mapOf<DayOfWeek, Set<Int>>()) }
 
     // Filter entries to current week
     val weekEntries = entries.filter { entry ->
@@ -128,6 +136,9 @@ fun WeekViewScreen(
                     }
                 } else {
                     unsubmittedGrouped.forEach { (dayOfWeek, entriesForDay) ->
+                        val isSelecting = selectingDays.value.contains(dayOfWeek)
+                        val selectedIds = selectedEntryIdsByDay.value[dayOfWeek] ?: emptySet()
+
                         item {
                             val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
                             val dateText = entriesForDay.first().startTime.format(dateFormatter)
@@ -143,18 +154,26 @@ fun WeekViewScreen(
                                 if (entriesForDay.size > 1) {
                                     Button(
                                         onClick = {
-                                            isSelectingForSquish = !isSelectingForSquish
-                                            selectedEntryIds.clear()
+                                            selectingDays.value = if (isSelecting) {
+                                                selectingDays.value - dayOfWeek
+                                            } else {
+                                                selectingDays.value + dayOfWeek
+                                            }
+                                            // Clear selections for this day when toggling off
+                                            selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
+                                                put(dayOfWeek, emptySet())
+                                            }
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(top = 4.dp)
                                     ) {
-                                        Text(if (isSelectingForSquish) "Cancel Selection" else "Select Entries to Squish")
+                                        Text(if (isSelecting) "Cancel Selection" else "Select Entries to Squish")
                                     }
                                 }
                             }
                         }
+
                         items(entriesForDay) { entry ->
                             TimeEntryRow(
                                 entry = entry,
@@ -162,41 +181,41 @@ fun WeekViewScreen(
                                     viewModel.setSubmitted(entry.id, isSubmitted)
                                 },
                                 onUnsquish = if (entry.label == "Squished Block") {
-                                    {
-                                        viewModel.unsquishEntryByDate(entry)
-                                    }
-                                } else {
-                                    null
-                                },
-                                showSelectCheckbox = isSelectingForSquish,
-                                isSelected = selectedEntryIds.contains(entry.id),
+                                    { viewModel.unsquishEntryByDate(entry) }
+                                } else null,
+                                showSelectCheckbox = isSelecting,
+                                isSelected = selectedIds.contains(entry.id),
                                 onSelectChanged = { checked ->
-                                    if (checked) {
-                                        selectedEntryIds.add(entry.id)
-                                    } else {
-                                        selectedEntryIds.remove(entry.id)
+                                    val current = selectedEntryIdsByDay.value[dayOfWeek] ?: emptySet()
+                                    selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
+                                        put(
+                                            dayOfWeek,
+                                            if (checked) current + entry.id else current - entry.id
+                                        )
                                     }
                                 }
                             )
                             Divider()
                         }
-                    }
 
-                    // Squish Selected button
-                    if (isSelectingForSquish && selectedEntryIds.isNotEmpty()) {
-                        item {
-                            Button(
-                                onClick = {
-                                    val entriesToSquish = entries.filter { selectedEntryIds.contains(it.id) }
-                                    viewModel.squishEntries(entriesToSquish)
-                                    isSelectingForSquish = false
-                                    selectedEntryIds.clear()
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                Text("Squish Selected Entries")
+                        if (isSelecting && selectedIds.isNotEmpty()) {
+                            item {
+                                Button(
+                                    onClick = {
+                                        val entriesToSquish = entriesForDay.filter { selectedIds.contains(it.id) }
+                                        viewModel.squishEntries(entriesToSquish)
+                                        // Reset selection state for this day
+                                        selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
+                                            put(dayOfWeek, emptySet())
+                                        }
+                                        selectingDays.value = selectingDays.value - dayOfWeek
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    Text("Squish Selected Entries")
+                                }
                             }
                         }
                     }
@@ -247,6 +266,7 @@ fun WeekViewScreen(
     }
 }
 
+
 @Composable
 fun TimeEntryRow(
     entry: TimeEntry,
@@ -265,6 +285,24 @@ fun TimeEntryRow(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Squish selection toggle on the LEFT
+        if (showSelectCheckbox && onSelectChanged != null) {
+            IconToggleButton(
+                checked = isSelected,
+                onCheckedChange = onSelectChanged
+            ) {
+                Icon(
+                    imageVector = if (isSelected)
+                        Icons.Default.CheckCircle
+                    else
+                        Icons.Default.RadioButtonUnchecked,
+                    contentDescription = "Select for squish"
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
+        // Entry text in the middle
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -286,7 +324,7 @@ fun TimeEntryRow(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            // If this is a squished block, show Unsquish button
+            // Unsquish button if applicable
             if (entry.label == "Squished Block" && onUnsquish != null) {
                 Button(
                     onClick = onUnsquish,
@@ -296,12 +334,9 @@ fun TimeEntryRow(
                 }
             }
         }
-        if (showSelectCheckbox && onSelectChanged != null) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = onSelectChanged
-            )
-        } else {
+
+        // Submission checkbox on the RIGHT
+        if (!showSelectCheckbox) {
             Checkbox(
                 checked = entry.isSubmitted,
                 onCheckedChange = onSetSubmitted
@@ -309,5 +344,6 @@ fun TimeEntryRow(
         }
     }
 }
+
 
 
