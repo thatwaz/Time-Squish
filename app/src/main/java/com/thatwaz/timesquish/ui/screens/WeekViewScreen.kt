@@ -1,5 +1,6 @@
 package com.thatwaz.timesquish.ui.screens
 
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,16 +14,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-
-
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.google.android.gms.maps.model.Circle
 import com.thatwaz.timesquish.data.local.TimeEntry
 import com.thatwaz.timesquish.ui.viewmodel.TimeEntryViewModel
 import com.thatwaz.timesquish.util.getEndOfWeek
@@ -52,9 +52,12 @@ fun WeekViewScreen(
     val thisWeekStart = getStartOfWeek(LocalDateTime.now())
     val entries by viewModel.allEntries.collectAsState()
 
-    // Store per-day selection state
+    // Per-day selection for squish
     val selectingDays = remember { mutableStateOf(setOf<DayOfWeek>()) }
     val selectedEntryIdsByDay = remember { mutableStateOf(mapOf<DayOfWeek, Set<Int>>()) }
+
+    // Pending deletion state
+    var entryPendingDelete by remember { mutableStateOf<TimeEntry?>(null) }
 
     // Filter entries to current week
     val weekEntries = entries.filter { entry ->
@@ -65,13 +68,8 @@ fun WeekViewScreen(
     val unsubmittedEntries = weekEntries.filter { !it.isSubmitted }
     val submittedEntries = weekEntries.filter { it.isSubmitted }
 
-    val unsubmittedGrouped = unsubmittedEntries
-        .groupBy { it.startTime.dayOfWeek }
-        .toSortedMap()
-
-    val submittedGrouped = submittedEntries
-        .groupBy { it.startTime.dayOfWeek }
-        .toSortedMap()
+    val unsubmittedGrouped = unsubmittedEntries.groupBy { it.startTime.dayOfWeek }.toSortedMap()
+    val submittedGrouped = submittedEntries.groupBy { it.startTime.dayOfWeek }.toSortedMap()
 
     Column(
         modifier = Modifier
@@ -84,21 +82,15 @@ fun WeekViewScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = {
-                currentWeekStart = currentWeekStart.minusWeeks(1)
-            }) {
+            Button(onClick = { currentWeekStart = currentWeekStart.minusWeeks(1) }) {
                 Text("< Previous Week")
             }
-
             Text(
                 text = "Week of ${currentWeekStart.toLocalDate()}",
                 style = MaterialTheme.typography.titleMedium
             )
-
             if (currentWeekStart.isBefore(thisWeekStart)) {
-                Button(onClick = {
-                    currentWeekStart = currentWeekStart.plusWeeks(1)
-                }) {
+                Button(onClick = { currentWeekStart = currentWeekStart.plusWeeks(1) }) {
                     Text("Next Week >")
                 }
             } else {
@@ -117,7 +109,7 @@ fun WeekViewScreen(
             }
         } else {
             LazyColumn {
-                // Unsubmitted section header
+                // Unsubmitted Section Header
                 item {
                     Text(
                         text = "Unsubmitted Entries",
@@ -139,6 +131,7 @@ fun WeekViewScreen(
                         val isSelecting = selectingDays.value.contains(dayOfWeek)
                         val selectedIds = selectedEntryIdsByDay.value[dayOfWeek] ?: emptySet()
 
+                        // Day header and squish toggle
                         item {
                             val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
                             val dateText = entriesForDay.first().startTime.format(dateFormatter)
@@ -159,7 +152,6 @@ fun WeekViewScreen(
                                             } else {
                                                 selectingDays.value + dayOfWeek
                                             }
-                                            // Clear selections for this day when toggling off
                                             selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
                                                 put(dayOfWeek, emptySet())
                                             }
@@ -174,11 +166,15 @@ fun WeekViewScreen(
                             }
                         }
 
+                        // Entries for this day
                         items(entriesForDay) { entry ->
                             TimeEntryRow(
                                 entry = entry,
                                 onSetSubmitted = { isSubmitted ->
                                     viewModel.setSubmitted(entry.id, isSubmitted)
+                                },
+                                onDelete = {
+                                    entryPendingDelete = entry
                                 },
                                 onUnsquish = if (entry.label == "Squished Block") {
                                     { viewModel.unsquishEntryByDate(entry) }
@@ -204,7 +200,6 @@ fun WeekViewScreen(
                                     onClick = {
                                         val entriesToSquish = entriesForDay.filter { selectedIds.contains(it.id) }
                                         viewModel.squishEntries(entriesToSquish)
-                                        // Reset selection state for this day
                                         selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
                                             put(dayOfWeek, emptySet())
                                         }
@@ -221,7 +216,7 @@ fun WeekViewScreen(
                     }
                 }
 
-                // Submitted section header
+                // Submitted Section Header
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -255,6 +250,9 @@ fun WeekViewScreen(
                                 entry = entry,
                                 onSetSubmitted = { isSubmitted ->
                                     viewModel.setSubmitted(entry.id, isSubmitted)
+                                },
+                                onDelete = {
+                                    entryPendingDelete = entry
                                 }
                             )
                             Divider()
@@ -264,13 +262,41 @@ fun WeekViewScreen(
             }
         }
     }
+
+    // Confirm delete dialog
+    if (entryPendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { entryPendingDelete = null },
+            title = { Text("Delete Entry") },
+            text = { Text("Are you sure you want to delete this time entry? This cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTimeEntry(entryPendingDelete!!)
+                        entryPendingDelete = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { entryPendingDelete = null }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
+
 
 
 @Composable
 fun TimeEntryRow(
     entry: TimeEntry,
     onSetSubmitted: (Boolean) -> Unit,
+    onDelete: () -> Unit, // NEW
     onUnsquish: (() -> Unit)? = null,
     showSelectCheckbox: Boolean = false,
     isSelected: Boolean = false,
@@ -287,18 +313,10 @@ fun TimeEntryRow(
     ) {
         // Squish selection toggle on the LEFT
         if (showSelectCheckbox && onSelectChanged != null) {
-            IconToggleButton(
-                checked = isSelected,
-                onCheckedChange = onSelectChanged
-            ) {
-                Icon(
-                    imageVector = if (isSelected)
-                        Icons.Default.CheckCircle
-                    else
-                        Icons.Default.RadioButtonUnchecked,
-                    contentDescription = "Select for squish"
-                )
-            }
+            RadioButton(
+                selected = isSelected,
+                onClick = { onSelectChanged(!isSelected) }
+            )
             Spacer(modifier = Modifier.width(8.dp))
         }
 
@@ -335,11 +353,21 @@ fun TimeEntryRow(
             }
         }
 
-        // Submission checkbox on the RIGHT
+        // Submission checkbox (if not selecting)
         if (!showSelectCheckbox) {
             Checkbox(
                 checked = entry.isSubmitted,
                 onCheckedChange = onSetSubmitted
+            )
+        }
+
+        // Trash icon always visible
+        IconButton(
+            onClick = onDelete
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete entry"
             )
         }
     }
