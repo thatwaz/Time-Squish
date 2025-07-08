@@ -44,4 +44,8 @@ interface TimeEntryDao {
     @Query("UPDATE time_entries SET endTime = :endTime, durationMinutes = :duration WHERE id = :id")
     suspend fun completeSession(id: Int, endTime: LocalDateTime, duration: Long)
 
+    @Query("SELECT * FROM time_entries")
+    suspend fun getAllEntriesOnce(): List<TimeEntry>
+
+
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -115,10 +116,11 @@ class TimeEntryViewModel @Inject constructor(
         viewModelScope.launch {
             if (entriesToSquish.isEmpty()) return@launch
 
+            val groupId = UUID.randomUUID().toString()
+
             val startTime = entriesToSquish.minBy { it.startTime }.startTime
-            val endTime = entriesToSquish.maxBy { it.endTime ?: it.startTime }.endTime
-                ?: LocalDateTime.now()
-            val duration = java.time.Duration.between(startTime, endTime).toMinutes()
+            val endTime = entriesToSquish.maxBy { it.endTime ?: it.startTime }.endTime ?: LocalDateTime.now()
+            val duration = Duration.between(startTime, endTime).toMinutes()
 
             val squishedEntry = TimeEntry(
                 startTime = startTime,
@@ -126,30 +128,41 @@ class TimeEntryViewModel @Inject constructor(
                 durationMinutes = duration,
                 isManual = true,
                 isSubmitted = false,
-                label = "Squished Block"
+                label = "Squished Block",
+                squishGroupId = groupId
             )
 
-            // Insert the squished entry
             repository.insertTimeEntry(squishedEntry)
 
-            // ✅ Correctly mark originals hidden by updating them
             entriesToSquish.forEach {
-                repository.updateTimeEntry(it.copy(isHidden = true))
+                repository.updateTimeEntry(it.copy(isHidden = true, squishGroupId = groupId))
             }
         }
     }
 
 
-    fun unsquishEntry(squishedEntry: TimeEntry, originals: List<TimeEntry>) {
+
+    fun unsquishEntry(squishedEntry: TimeEntry) {
         viewModelScope.launch {
+            // Get all entries one time
+            val allEntries = repository.getAllEntriesOnce()
+
+            // Find only the ones belonging to this squish group
+            val originals = allEntries.filter {
+                it.isHidden && it.squishGroupId == squishedEntry.squishGroupId
+            }
+
+            // Delete squished summary
             repository.deleteTimeEntry(squishedEntry)
 
+            // Restore originals
             originals.forEach {
-                Log.d("UNSQUISH", "Unhiding ID=${it.id}")
-                repository.updateTimeEntry(it.copy(isHidden = false))
+                repository.updateTimeEntry(it.copy(isHidden = false, squishGroupId = null))
             }
         }
     }
+
+
 
     fun unsquishEntryByDate(squishedEntry: TimeEntry) {
         viewModelScope.launch {

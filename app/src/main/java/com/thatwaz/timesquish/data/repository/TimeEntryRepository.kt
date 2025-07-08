@@ -52,5 +52,10 @@ class TimeEntryRepository @Inject constructor(
         return dao.getAllEntriesIncludingHidden()
     }
 
+    suspend fun getAllEntriesOnce(): List<TimeEntry> {
+        return dao.getAllEntriesOnce()
+    }
+
+
 
 }

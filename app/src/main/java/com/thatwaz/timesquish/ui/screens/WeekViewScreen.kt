@@ -78,25 +78,32 @@ fun WeekViewScreen(
     ) {
         // Week Navigation
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = { currentWeekStart = currentWeekStart.minusWeeks(1) }) {
-                Text("< Previous Week")
+            Button(
+                onClick = { currentWeekStart = currentWeekStart.minusWeeks(1) }
+            ) {
+                Text("< Previous")
             }
+
             Text(
                 text = "Week of ${currentWeekStart.toLocalDate()}",
                 style = MaterialTheme.typography.titleMedium
             )
-            if (currentWeekStart.isBefore(thisWeekStart)) {
-                Button(onClick = { currentWeekStart = currentWeekStart.plusWeeks(1) }) {
-                    Text("Next Week >")
-                }
-            } else {
-                Spacer(modifier = Modifier.width(8.dp))
+
+            Button(
+                onClick = { currentWeekStart = currentWeekStart.plusWeeks(1) },
+                enabled = currentWeekStart.isBefore(thisWeekStart)
+            ) {
+                Text("Next >")
             }
-        }
+        
+
+    }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -177,7 +184,7 @@ fun WeekViewScreen(
                                     entryPendingDelete = entry
                                 },
                                 onUnsquish = if (entry.label == "Squished Block") {
-                                    { viewModel.unsquishEntryByDate(entry) }
+                                    { viewModel.unsquishEntry(entry) }
                                 } else null,
                                 showSelectCheckbox = isSelecting,
                                 isSelected = selectedIds.contains(entry.id),
