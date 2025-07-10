@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import com.thatwaz.timesquish.ui.screens.ActiveSessionScreen
 import com.thatwaz.timesquish.ui.screens.HomeScreen
 import com.thatwaz.timesquish.ui.screens.ManualEntryScreen
+import com.thatwaz.timesquish.ui.screens.ReminderSettingsScreen
 import com.thatwaz.timesquish.ui.screens.WeekViewScreen
 
 @Composable
@@ -27,7 +28,8 @@ fun AppNavHost(
             HomeScreen(
                 onNavigateToWeekView = { navController.navigate("weekView") },
                 onNavigateToManualEntry = { navController.navigate("manualEntry") },
-                onNavigateToActiveSession = { navController.navigate("activeSession") }
+                onNavigateToActiveSession = { navController.navigate("activeSession") },
+                onNavigateToReminderSettings = { navController.navigate("reminderSettings") }
             )
         }
 
@@ -63,6 +65,12 @@ fun AppNavHost(
             ManualEntryScreen(
                 entryId = entryId,
                 onEntryAdded = { navController.popBackStack() }
+            )
+        }
+
+        composable("reminderSettings") {
+            ReminderSettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

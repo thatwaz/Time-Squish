@@ -25,8 +25,10 @@ fun HomeScreen(
     viewModel: TimeEntryViewModel = hiltViewModel(),
     onNavigateToWeekView: () -> Unit,
     onNavigateToManualEntry: () -> Unit,
-    onNavigateToActiveSession: () -> Unit
-) {
+    onNavigateToActiveSession: () -> Unit,
+    onNavigateToReminderSettings: () -> Unit
+)
+ {
     val activeSession by viewModel.activeSession.collectAsState()
 
     // Auto-navigate if already clocked in
@@ -81,6 +83,17 @@ fun HomeScreen(
         ) {
             Text("View This Week")
         }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onNavigateToReminderSettings,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Reminder Settings")
+        }
+
+
+
     }
 }
 
