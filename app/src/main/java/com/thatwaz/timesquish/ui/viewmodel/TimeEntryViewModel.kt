@@ -5,24 +5,23 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.thatwaz.timesquish.data.local.TimeEntry
 import com.thatwaz.timesquish.data.repository.TimeEntryRepository
+import com.thatwaz.timesquish.util.ReminderScheduler
 import com.thatwaz.timesquish.util.UserPreferences
-import com.thatwaz.timesquish.workers.ReminderWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+
 
 @HiltViewModel
 class TimeEntryViewModel @Inject constructor(
@@ -122,8 +121,12 @@ class TimeEntryViewModel @Inject constructor(
             )
             repository.insertTimeEntry(entry)
             _activeSession.value = repository.getActiveSession()
+
+            val reminderHours = userPreferences.reminderHoursFlow.first()  // << use first()
+            scheduleClockInReminder(reminderHours)
         }
     }
+
 
     fun clockOut() {
         viewModelScope.launch {
@@ -133,9 +136,13 @@ class TimeEntryViewModel @Inject constructor(
                 val duration = java.time.Duration.between(session.startTime, end).toMinutes()
                 repository.completeSession(session.id, end, duration)
                 _activeSession.value = null
+
+                // Cancel reminder
+                cancelClockInReminder()
             }
         }
     }
+
 
     fun squishEntries(entriesToSquish: List<TimeEntry>) {
         viewModelScope.launch {
@@ -213,17 +220,15 @@ class TimeEntryViewModel @Inject constructor(
     }
 
     fun scheduleClockInReminder(hours: Long) {
-        val workRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
-            .setInitialDelay(hours, TimeUnit.HOURS)
-            .addTag("clock_in_reminder")
-            .build()
+        val millis = 30 * 1000
 
-        WorkManager.getInstance(appContext).enqueue(workRequest)
+        ReminderScheduler.scheduleReminder(appContext, millis)
     }
 
     fun cancelClockInReminder() {
-        WorkManager.getInstance(appContext).cancelAllWorkByTag("clock_in_reminder")
+        ReminderScheduler.cancelReminder(appContext)
     }
+
 
 
 
