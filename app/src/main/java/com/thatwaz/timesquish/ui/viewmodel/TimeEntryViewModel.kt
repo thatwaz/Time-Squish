@@ -52,7 +52,7 @@ class TimeEntryViewModel @Inject constructor(
     fun insertTimeEntry(
         startTime: LocalDateTime,
         endTime: LocalDateTime,
-        isManual: Boolean = false,
+        isManual: Boolean = true,
         label: String? = null
     ) {
         viewModelScope.launch {
@@ -68,6 +68,7 @@ class TimeEntryViewModel @Inject constructor(
         }
     }
 
+
     // Mark an entry as submitted
     fun setSubmitted(id: Int, isSubmitted: Boolean) {
         viewModelScope.launch {
@@ -81,6 +82,13 @@ class TimeEntryViewModel @Inject constructor(
             repository.deleteTimeEntry(entry)
         }
     }
+
+    fun updateTimeEntry(entry: TimeEntry) {
+        viewModelScope.launch {
+            repository.updateTimeEntry(entry)
+        }
+    }
+
 
     private val _isClockedIn = MutableStateFlow(false)
     val isClockedIn = _isClockedIn.asStateFlow()

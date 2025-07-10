@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -57,7 +58,8 @@ enum class ListMode {
 @Composable
 fun WeekViewScreen(
     viewModel: TimeEntryViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onEditEntry: (Int) -> Unit
 ) {
     // List Mode State
     var listMode by remember { mutableStateOf(ListMode.NORMAL) }
@@ -227,8 +229,15 @@ fun WeekViewScreen(
                         items(entriesForDay) { entry ->
                             TimeEntryRow(
                                 entry = entry,
-                                onSetSubmitted = { viewModel.setSubmitted(entry.id, it) },
-                                onDelete = { entryPendingDelete = entry },
+                                onSetSubmitted = { isSubmitted ->
+                                    viewModel.setSubmitted(entry.id, isSubmitted)
+                                },
+                                onDelete = {
+                                    entryPendingDelete = entry
+                                },
+                                onEdit = {
+                                    onEditEntry(entry.id)
+                                },
                                 onUnsquish = if (entry.label == "Squished Block") {
                                     { viewModel.unsquishEntry(entry) }
                                 } else null,
@@ -237,16 +246,19 @@ fun WeekViewScreen(
                                 isSelected = selectedIds.contains(entry.id),
                                 onSelectChanged = { checked ->
                                     val current = selectedIds
-                                    selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
-                                        put(
-                                            dayOfWeek,
-                                            if (checked) current + entry.id else current - entry.id
-                                        )
-                                    }
+                                    selectedEntryIdsByDay.value = selectedEntryIdsByDay.value
+                                        .toMutableMap()
+                                        .apply {
+                                            put(
+                                                dayOfWeek,
+                                                if (checked) current + entry.id else current - entry.id
+                                            )
+                                        }
                                 }
                             )
                             Divider()
                         }
+
 
                         if (isSelecting && selectedIds.isNotEmpty()) {
                             item {
@@ -306,6 +318,7 @@ fun WeekViewScreen(
                                 entry = entry,
                                 onSetSubmitted = { viewModel.setSubmitted(entry.id, it) },
                                 onDelete = { entryPendingDelete = entry },
+                                onEdit = { onEditEntry(entry.id) },
                                 listMode = listMode
                             )
                             Divider()
@@ -347,6 +360,7 @@ fun TimeEntryRow(
     entry: TimeEntry,
     onSetSubmitted: (Boolean) -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onUnsquish: (() -> Unit)? = null,
     listMode: ListMode,
     showSelectCheckbox: Boolean = false,
@@ -362,7 +376,7 @@ fun TimeEntryRow(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Squish selection toggle on the LEFT
+        // Left: Squish selection toggle
         if (listMode == ListMode.SQUISH && showSelectCheckbox && onSelectChanged != null) {
             IconToggleButton(
                 checked = isSelected,
@@ -379,7 +393,7 @@ fun TimeEntryRow(
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        // Entry text
+        // Center: Entry info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -401,7 +415,8 @@ fun TimeEntryRow(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            // Unsquish button
+
+            // Optional Unsquish button
             if (entry.label == "Squished Block" && onUnsquish != null) {
                 Button(
                     onClick = onUnsquish,
@@ -412,20 +427,35 @@ fun TimeEntryRow(
             }
         }
 
-        // Delete icon always visible
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "Delete")
-        }
+        // Right: Action buttons
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Edit icon always visible
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit"
+                )
+            }
 
-        // Submit checkbox only in submit mode
-        if (listMode == ListMode.SUBMIT) {
-            Checkbox(
-                checked = entry.isSubmitted,
-                onCheckedChange = onSetSubmitted
-            )
+            // Delete icon always visible
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete"
+                )
+            }
+
+            // Submit checkbox only in submit mode
+            if (listMode == ListMode.SUBMIT) {
+                Checkbox(
+                    checked = entry.isSubmitted,
+                    onCheckedChange = onSetSubmitted
+                )
+            }
         }
     }
 }
+
 
 
 
