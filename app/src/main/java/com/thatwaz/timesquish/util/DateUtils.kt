@@ -47,6 +47,7 @@ fun showTimePicker(
         },
         initialTime.hour,
         initialTime.minute,
-        true
+        false // <---- THIS enables AM/PM
     ).show()
 }
+

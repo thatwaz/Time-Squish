@@ -54,7 +54,7 @@ fun ManualEntryScreen(
     var label by remember { mutableStateOf(initialLabel) }
 
     val dateFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy")
-    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
     Column(
         modifier = Modifier

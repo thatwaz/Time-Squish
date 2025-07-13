@@ -143,21 +143,25 @@ class TimeEntryViewModel @Inject constructor(
         }
     }
 
-
     fun squishEntries(entriesToSquish: List<TimeEntry>) {
         viewModelScope.launch {
             if (entriesToSquish.isEmpty()) return@launch
 
             val groupId = UUID.randomUUID().toString()
 
+            // 1️⃣ Earliest start time
             val startTime = entriesToSquish.minBy { it.startTime }.startTime
-            val endTime = entriesToSquish.maxBy { it.endTime ?: it.startTime }.endTime ?: LocalDateTime.now()
-            val duration = Duration.between(startTime, endTime).toMinutes()
+
+            // 2️⃣ Total duration
+            val totalWorkedMinutes = entriesToSquish.sumOf { it.durationMinutes ?: 0 }
+
+            // 3️⃣ Shifted end time
+            val adjustedEndTime = startTime.plusMinutes(totalWorkedMinutes)
 
             val squishedEntry = TimeEntry(
                 startTime = startTime,
-                endTime = endTime,
-                durationMinutes = duration,
+                endTime = adjustedEndTime,
+                durationMinutes = totalWorkedMinutes,
                 isManual = true,
                 isSubmitted = false,
                 label = "Squished Block",
@@ -171,6 +175,7 @@ class TimeEntryViewModel @Inject constructor(
             }
         }
     }
+
 
 
 
