@@ -23,12 +23,9 @@ import com.thatwaz.timesquish.ui.viewmodel.TimeEntryViewModel
 @Composable
 fun HomeScreen(
     viewModel: TimeEntryViewModel = hiltViewModel(),
-    onNavigateToWeekView: () -> Unit,
-    onNavigateToManualEntry: () -> Unit,
     onNavigateToActiveSession: () -> Unit,
     onNavigateToReminderSettings: () -> Unit
-)
- {
+) {
     val activeSession by viewModel.activeSession.collectAsState()
 
     // Auto-navigate if already clocked in
@@ -58,7 +55,7 @@ fun HomeScreen(
                     viewModel.clockOut()
                 } else {
                     viewModel.clockIn()
-                    // No manual navigation needed; LaunchedEffect will navigate automatically
+                    // LaunchedEffect handles redirect
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -69,31 +66,13 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = onNavigateToManualEntry,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Add Manual Entry")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = onNavigateToWeekView,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("View This Week")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
             onClick = onNavigateToReminderSettings,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Reminder Settings")
         }
-
-
-
     }
 }
+
+
 

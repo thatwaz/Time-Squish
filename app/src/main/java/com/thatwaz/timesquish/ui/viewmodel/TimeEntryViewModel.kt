@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -35,6 +36,25 @@ class TimeEntryViewModel @Inject constructor(
 
     val reminderHoursFlow = userPreferences.reminderHoursFlow
 
+    // All entries, sorted newest first
+    val allEntries = repository.getAllEntries()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    // Group and sort entries by day, with the newest day first
+    val groupedEntriesByDate = allEntries
+        .map { entries ->
+            entries
+                .filter { true }
+                .groupBy { it.startTime.toLocalDate() }
+                .toSortedMap(compareByDescending { it }) // Sort by date descending
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+
     init {
         viewModelScope.launch {
             _activeSession.value = repository.getActiveSession()
@@ -48,13 +68,7 @@ class TimeEntryViewModel @Inject constructor(
 
 
 
-    // All entries, sorted newest first
-    val allEntries = repository.getAllEntries()
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
+
 
     // Unsubmitted entries
     val unsubmittedEntries = repository.getUnsubmittedEntries()

@@ -1,5 +1,6 @@
 package com.thatwaz.timesquish
 
+import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -10,19 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
-import android.Manifest
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.thatwaz.timesquish.ui.AppNavHost
+import com.thatwaz.timesquish.ui.BottomNavBar
 import com.thatwaz.timesquish.ui.theme.TimeSquishTheme
 import dagger.hilt.android.AndroidEntryPoint
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request notification permission before showing the UI
         maybeRequestNotificationPermission()
 
         enableEdgeToEdge()
@@ -31,7 +32,10 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
 
                 Scaffold(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        BottomNavBar(navController)
+                    }
                 ) { innerPadding ->
                     AppNavHost(
                         navController = navController,
@@ -52,7 +56,7 @@ class MainActivity : ComponentActivity() {
                 ActivityCompat.requestPermissions(
                     this,
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    1001 // Can be any int
+                    1001
                 )
             }
         }
