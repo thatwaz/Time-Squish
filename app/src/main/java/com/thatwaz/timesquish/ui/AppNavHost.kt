@@ -11,7 +11,7 @@ import com.thatwaz.timesquish.BottomNavItem
 import com.thatwaz.timesquish.ui.screens.ActiveSessionScreen
 import com.thatwaz.timesquish.ui.screens.HomeScreen
 import com.thatwaz.timesquish.ui.screens.ManualEntryScreen
-import com.thatwaz.timesquish.ui.screens.ReminderSettingsScreen
+import com.thatwaz.timesquish.ui.screens.UserSettingsScreen
 import com.thatwaz.timesquish.ui.screens.WeekViewScreen
 
 @Composable
@@ -28,7 +28,7 @@ fun AppNavHost(
         composable(BottomNavItem.Home.route) {
             HomeScreen(
                 onNavigateToActiveSession = { navController.navigate("activeSession") },
-                onNavigateToReminderSettings = { navController.navigate("reminderSettings") }
+                onNavigateToUserSettings = { navController.navigate("userSettings") }
             )
         }
 
@@ -77,9 +77,9 @@ fun AppNavHost(
             )
         }
 
-        // REMINDER SETTINGS (non-tab)
-        composable("reminderSettings") {
-            ReminderSettingsScreen(
+        // User SETTINGS (non-tab)
+        composable("userSettings") {
+            UserSettingsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -1,6 +1,12 @@
 package com.thatwaz.timesquish.ui.screens
 
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.thatwaz.timesquish.data.local.TimeEntry
@@ -81,12 +89,10 @@ fun WeekViewScreen(
 
     var entryPendingDelete by remember { mutableStateOf<TimeEntry?>(null) }
 
-    // Filter for selected week
+    // Filter entries for selected week
     val startOfWeek = selectedWeekStart.toLocalDate()
     val endOfWeek = getEndOfWeek(selectedWeekStart).toLocalDate()
-
-    val weekGroups = groupedEntries
-        .filterKeys { it in startOfWeek..endOfWeek }
+    val weekGroups = groupedEntries.filterKeys { it in startOfWeek..endOfWeek }
 
     val allWeekEntries = weekGroups.values.flatten()
     val unsubmittedEntries = allWeekEntries.filterNot { it.isSubmitted }
@@ -130,8 +136,50 @@ fun WeekViewScreen(
                 Text("No entries this week.")
             }
         } else {
-            EntriesSection(
-                groupedEntries = weekGroups,
+            // 🔴 Unsubmitted Section Label
+            Text(
+                text = "Unsubmitted",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (unsubmittedEntries.isNotEmpty()) Color.Red else MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ✅ Success Banner (Animated)
+            AnimatedVisibility(
+                visible = unsubmittedEntries.isEmpty() && allWeekEntries.isNotEmpty(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF4CAF50))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "All submitted",
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("All entries submitted!", color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 🟢 Combined Entries Section
+            CombinedEntriesSection(
+                unsubmitted = unsubmittedEntries.groupBy { it.startTime.toLocalDate() },
+                submitted = submittedEntries.groupBy { it.startTime.toLocalDate() },
                 listMode = listMode,
                 selectingDays = selectingDays,
                 selectedEntryIdsByDay = selectedEntryIdsByDay,
@@ -142,6 +190,7 @@ fun WeekViewScreen(
         }
     }
 
+    // Confirm delete dialog
     if (entryPendingDelete != null) {
         ConfirmDeleteDialog(
             onConfirm = {
@@ -152,6 +201,143 @@ fun WeekViewScreen(
         )
     }
 }
+
+
+
+
+@Composable
+fun CombinedEntriesSection(
+    unsubmitted: Map<LocalDate, List<TimeEntry>>,
+    submitted: Map<LocalDate, List<TimeEntry>>,
+    listMode: ListMode,
+    selectingDays: MutableState<Set<DayOfWeek>>,
+    selectedEntryIdsByDay: MutableState<Map<DayOfWeek, Set<Int>>>,
+    onEditEntry: (Int) -> Unit,
+    viewModel: TimeEntryViewModel,
+    onDeleteEntry: (TimeEntry) -> Unit
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+
+
+        unsubmitted.forEach { (date, entries) ->
+            val dayOfWeek = date.dayOfWeek
+            val isSelecting = selectingDays.value.contains(dayOfWeek)
+            val selectedIds = selectedEntryIdsByDay.value[dayOfWeek] ?: emptySet()
+
+            item {
+                DayHeader(
+                    dayOfWeek = dayOfWeek,
+                    entriesForDay = entries,
+                    listMode = listMode,
+                    isSelecting = isSelecting,
+                    onToggleSelect = {
+                        selectingDays.value = if (isSelecting)
+                            selectingDays.value - dayOfWeek
+                        else
+                            selectingDays.value + dayOfWeek
+
+                        selectedEntryIdsByDay.value =
+                            selectedEntryIdsByDay.value.toMutableMap().apply {
+                                put(dayOfWeek, emptySet())
+                            }
+                    },
+                    formattedDate = date.format(DateTimeFormatter.ofPattern("MMMM d"))
+                )
+            }
+
+            items(entries) { entry ->
+                TimeEntryRow(
+                    entry = entry,
+                    onSetSubmitted = { viewModel.setSubmitted(entry.id, it) },
+                    onDelete = { onDeleteEntry(entry) },
+                    onEdit = { onEditEntry(entry.id) },
+                    onUnsquish = if (entry.label == "Squished Block") {
+                        { viewModel.unsquishEntry(entry) }
+                    } else null,
+                    listMode = listMode,
+                    showSelectCheckbox = isSelecting,
+                    isSelected = selectedIds.contains(entry.id),
+                    onSelectChanged = { checked ->
+                        val current = selectedIds
+                        selectedEntryIdsByDay.value =
+                            selectedEntryIdsByDay.value.toMutableMap().apply {
+                                put(
+                                    dayOfWeek,
+                                    if (checked) current + entry.id else current - entry.id
+                                )
+                            }
+                    }
+                )
+                Divider()
+            }
+
+            if (isSelecting && selectedIds.isNotEmpty()) {
+                item {
+                    Button(
+                        onClick = {
+                            val entriesToSquish = entries.filter { selectedIds.contains(it.id) }
+                            viewModel.squishEntries(entriesToSquish)
+                            selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
+                                put(dayOfWeek, emptySet())
+                            }
+                            selectingDays.value = selectingDays.value - dayOfWeek
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Text("Squish Selected Entries")
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Submitted",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFF4CAF50) // Material green
+            )
+
+        }
+
+        submitted.forEach { (date, entries) ->
+            val dayOfWeek = date.dayOfWeek
+
+            item {
+                DayHeader(
+                    dayOfWeek = dayOfWeek,
+                    entriesForDay = entries,
+                    listMode = listMode,
+                    isSelecting = false,
+                    onToggleSelect = {},
+                    formattedDate = date.format(DateTimeFormatter.ofPattern("MMMM d"))
+                )
+            }
+
+            items(entries) { entry ->
+                TimeEntryRow(
+                    entry = entry,
+                    onSetSubmitted = { viewModel.setSubmitted(entry.id, it) },
+                    onDelete = { onDeleteEntry(entry) },
+                    onEdit = { onEditEntry(entry.id) },
+                    onUnsquish = if (entry.label == "Squished Block") {
+                        { viewModel.unsquishEntry(entry) }
+                    } else null,
+                    listMode = listMode
+                )
+                Divider()
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+        }
+    }
+}
+
+
 
 
 @Composable
@@ -270,98 +456,6 @@ fun ModeButtons(
 
 
 
-
-
-@Composable
-fun EntriesSection(
-    groupedEntries: Map<LocalDate, List<TimeEntry>>,
-    listMode: ListMode,
-    selectingDays: MutableState<Set<DayOfWeek>>,
-    selectedEntryIdsByDay: MutableState<Map<DayOfWeek, Set<Int>>>,
-    onEditEntry: (Int) -> Unit,
-    viewModel: TimeEntryViewModel,
-    onDeleteEntry: (TimeEntry) -> Unit
-) {
-    LazyColumn {
-        groupedEntries.forEach { (date, entriesForDay) ->
-            val dayOfWeek = date.dayOfWeek
-            val isSelecting = selectingDays.value.contains(dayOfWeek)
-            val selectedIds = selectedEntryIdsByDay.value[dayOfWeek] ?: emptySet()
-
-            item {
-                DayHeader(
-                    dayOfWeek = dayOfWeek,
-                    entriesForDay = entriesForDay,
-                    listMode = listMode,
-                    isSelecting = isSelecting,
-                    onToggleSelect = {
-                        selectingDays.value = if (isSelecting) {
-                            selectingDays.value - dayOfWeek
-                        } else {
-                            selectingDays.value + dayOfWeek
-                        }
-                        selectedEntryIdsByDay.value =
-                            selectedEntryIdsByDay.value.toMutableMap().apply {
-                                put(dayOfWeek, emptySet())
-                            }
-                    },
-                    formattedDate = date.format(DateTimeFormatter.ofPattern("MMMM d"))
-                )
-            }
-
-            items(entriesForDay) { entry ->
-                TimeEntryRow(
-                    entry = entry,
-                    onSetSubmitted = { viewModel.setSubmitted(entry.id, it) },
-                    onDelete = { onDeleteEntry(entry) },
-                    onEdit = { onEditEntry(entry.id) },
-                    onUnsquish = if (entry.label == "Squished Block") {
-                        { viewModel.unsquishEntry(entry) }
-                    } else null,
-                    listMode = listMode,
-                    showSelectCheckbox = isSelecting,
-                    isSelected = selectedIds.contains(entry.id),
-                    onSelectChanged = { checked ->
-                        val current = selectedIds
-                        selectedEntryIdsByDay.value =
-                            selectedEntryIdsByDay.value.toMutableMap().apply {
-                                put(
-                                    dayOfWeek,
-                                    if (checked) current + entry.id else current - entry.id
-                                )
-                            }
-                    }
-                )
-                Divider()
-            }
-
-            if (isSelecting && selectedIds.isNotEmpty()) {
-                item {
-                    Button(
-                        onClick = {
-                            val entriesToSquish = entriesForDay.filter { selectedIds.contains(it.id) }
-                            viewModel.squishEntries(entriesToSquish)
-                            selectedEntryIdsByDay.value = selectedEntryIdsByDay.value.toMutableMap().apply {
-                                put(dayOfWeek, emptySet())
-                            }
-                            selectingDays.value = selectingDays.value - dayOfWeek
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Text("Squish Selected Entries")
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-        }
-    }
-}
-
-
-
 @Composable
 fun DayHeader(
     dayOfWeek: DayOfWeek,
@@ -410,9 +504,6 @@ fun ConfirmDeleteDialog(
         }
     )
 }
-
-
-
 
 
 @Composable
@@ -476,6 +567,32 @@ fun TimeEntryRow(
                 )
             }
 
+            // ✅ Animated submitted checkmark
+            AnimatedVisibility(
+                visible = entry.isSubmitted,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Submitted",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Submitted",
+                        color = Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            // Unsquish button
             if (entry.label == "Squished Block" && onUnsquish != null) {
                 Button(
                     onClick = onUnsquish,

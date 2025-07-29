@@ -11,6 +11,7 @@ import com.thatwaz.timesquish.util.ReminderScheduler
 import com.thatwaz.timesquish.util.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +19,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
@@ -55,6 +58,19 @@ class TimeEntryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
 
+
+    // Hourly pay flow
+    val hourlyPayFlow: Flow<Double> = userPreferences.hourlyPayFlow
+
+
+
+    // Save hourly pay
+    suspend fun saveHourlyPay(rate: Double) {
+        userPreferences.setHourlyPay(rate)
+    }
+
+
+
     init {
         viewModelScope.launch {
             _activeSession.value = repository.getActiveSession()
@@ -77,6 +93,21 @@ class TimeEntryViewModel @Inject constructor(
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
+
+    // Total earnings for the current week
+    val weeklyEarnings = allEntries
+        .map { entries ->
+            val startOfWeek = LocalDate.now().with(DayOfWeek.SUNDAY)
+            val endOfWeek = startOfWeek.plusDays(6)
+            entries
+                .filter {
+                    val date = it.startTime.toLocalDate()
+                    date in startOfWeek..endOfWeek
+                }
+                .sumOf { (it.durationMinutes ?: 0) / 60.0 * 20.0 } // Replace 20.0 with a dynamic rate later
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
 
     // Insert a new entry
     fun insertTimeEntry(
@@ -125,21 +156,23 @@ class TimeEntryViewModel @Inject constructor(
 
     private var clockInTime: LocalDateTime? = null
 
-    fun clockIn() {
+    fun clockIn(hourlyPay: Double) {
         viewModelScope.launch {
             val start = LocalDateTime.now()
             val entry = TimeEntry(
                 startTime = start,
                 endTime = null,
-                durationMinutes = null
+                durationMinutes = null,
+                hourlyPay = hourlyPay // << save pay per session
             )
             repository.insertTimeEntry(entry)
             _activeSession.value = repository.getActiveSession()
 
-            val reminderHours = userPreferences.reminderHoursFlow.first()  // << use first()
+            val reminderHours = userPreferences.reminderHoursFlow.first()
             scheduleClockInReminder(reminderHours)
         }
     }
+
 
 
     fun clockOut() {
@@ -246,6 +279,19 @@ class TimeEntryViewModel @Inject constructor(
 
     fun cancelClockInReminder() {
         ReminderScheduler.cancelReminder(appContext)
+    }
+
+
+    fun calculateWeeklyDurationMinutes(): Int {
+        val startOfWeek = LocalDate.now().with(DayOfWeek.SUNDAY)
+        val endOfWeek = startOfWeek.plusDays(6)
+        return allEntries.value
+            .filter {
+                val date = it.startTime.toLocalDate()
+                date in startOfWeek..endOfWeek
+            }
+            .sumOf { (it.durationMinutes ?: 0).toLong() }
+            .toInt()
     }
 
 

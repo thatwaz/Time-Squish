@@ -16,8 +16,7 @@ data class TimeEntry(
     val isSubmitted: Boolean = false,
     val label: String? = null,
     val isHidden: Boolean = false,
-    val squishGroupId: String? = null
-
-
-
+    val squishGroupId: String? = null,
+    val hourlyPay: Double = 0.0
 )
+
