@@ -55,6 +55,7 @@ import com.thatwaz.timesquish.ui.SummaryCard
 import com.thatwaz.timesquish.ui.viewmodel.TimeEntryViewModel
 import com.thatwaz.timesquish.util.getEndOfWeek
 import com.thatwaz.timesquish.util.getStartOfWeek
+import java.text.NumberFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -352,8 +353,14 @@ fun WeeklySummaryRow(
     val totalMinutes = weekEntries.sumOf { it.durationMinutes ?: 0 }
     val totalHours = totalMinutes / 60.0
 
-    val hourlyRate = 13 // example hourly rate (we can make this user-configurable later)
-    val estimatedEarnings = totalHours * hourlyRate
+    val viewModel: TimeEntryViewModel = hiltViewModel()
+    val hourlyRate = viewModel.hourlyPayFlow.collectAsState(initial = 13.0).value
+
+    val estimatedEarnings = weekEntries.sumOf {
+        val rate = it.hourlyPay ?: hourlyRate
+        (it.durationMinutes ?: 0) / 60.0 * rate
+    }
+
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -455,7 +462,6 @@ fun ModeButtons(
 }
 
 
-
 @Composable
 fun DayHeader(
     dayOfWeek: DayOfWeek,
@@ -465,24 +471,72 @@ fun DayHeader(
     onToggleSelect: () -> Unit,
     formattedDate: String
 ) {
+    val viewModel: TimeEntryViewModel = hiltViewModel()
+    val defaultHourlyRate = viewModel.hourlyPayFlow.collectAsState(initial = 13.0).value
+
+    val totalPayForDay = entriesForDay.sumOf { entry ->
+        val rate = entry.hourlyPay ?: defaultHourlyRate
+        val minutes = entry.durationMinutes ?: 0
+        (minutes / 60.0) * rate
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "${dayOfWeek.name.lowercase().replaceFirstChar { it.uppercaseChar() }} • $formattedDate",
             style = MaterialTheme.typography.titleMedium
         )
 
-        if (listMode == ListMode.SQUISH && entriesForDay.size > 1) {
-            TextButton(onClick = onToggleSelect) {
-                Text(if (isSelecting) "Cancel" else "Select")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$%.2f".format(totalPayForDay),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+
+            if (listMode == ListMode.SQUISH && entriesForDay.size > 1) {
+                TextButton(onClick = onToggleSelect) {
+                    Text(if (isSelecting) "Cancel" else "Select")
+                }
             }
         }
     }
 }
+
+
+
+//@Composable
+//fun DayHeader(
+//    dayOfWeek: DayOfWeek,
+//    entriesForDay: List<TimeEntry>,
+//    listMode: ListMode,
+//    isSelecting: Boolean,
+//    onToggleSelect: () -> Unit,
+//    formattedDate: String
+//) {
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(vertical = 8.dp),
+//        horizontalArrangement = Arrangement.SpaceBetween
+//    ) {
+//        Text(
+//            text = "${dayOfWeek.name.lowercase().replaceFirstChar { it.uppercaseChar() }} • $formattedDate",
+//            style = MaterialTheme.typography.titleMedium
+//        )
+//
+//        if (listMode == ListMode.SQUISH && entriesForDay.size > 1) {
+//            TextButton(onClick = onToggleSelect) {
+//                Text(if (isSelecting) "Cancel" else "Select")
+//            }
+//        }
+//    }
+//}
 
 
 
@@ -556,16 +610,41 @@ fun TimeEntryRow(
                 text = "${entry.startTime.format(timeFormatter)} - ${entry.endTime?.format(timeFormatter) ?: "In Progress"}",
                 style = MaterialTheme.typography.bodySmall
             )
+
             Text(
                 text = "Duration: ${entry.durationMinutes ?: "..."} min",
                 style = MaterialTheme.typography.bodySmall
             )
+
             if (!entry.label.isNullOrBlank()) {
                 Text(
                     text = "Label: ${entry.label}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+// 💰 Show pay made
+            // 💰 Show pay made only if duration and rate are valid
+            // 💰 Show pay and pay rate (even if it's $0.00)
+            val duration = entry.durationMinutes ?: 0
+            val rate = entry.hourlyPay
+            val pay = (duration / 60.0) * rate
+
+            val currencyFormatter = NumberFormat.getCurrencyInstance()
+
+            Text(
+                text = "Pay: ${currencyFormatter.format(pay)}",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                text = "Pay Rate: ${currencyFormatter.format(rate)}/hr",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+
+
+
 
             // ✅ Animated submitted checkmark
             AnimatedVisibility(

@@ -99,14 +99,32 @@ class TimeEntryViewModel @Inject constructor(
         .map { entries ->
             val startOfWeek = LocalDate.now().with(DayOfWeek.SUNDAY)
             val endOfWeek = startOfWeek.plusDays(6)
+
             entries
                 .filter {
                     val date = it.startTime.toLocalDate()
                     date in startOfWeek..endOfWeek
                 }
-                .sumOf { (it.durationMinutes ?: 0) / 60.0 * 20.0 } // Replace 20.0 with a dynamic rate later
+                .sumOf { entry ->
+                    val rate = entry.hourlyPay ?: 0.0 // fallback to 0.0 if not stored
+                    val hours = (entry.durationMinutes ?: 0) / 60.0
+                    hours * rate
+                }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+//    val weeklyEarnings = allEntries
+//        .map { entries ->
+//            val startOfWeek = LocalDate.now().with(DayOfWeek.SUNDAY)
+//            val endOfWeek = startOfWeek.plusDays(6)
+//            entries
+//                .filter {
+//                    val date = it.startTime.toLocalDate()
+//                    date in startOfWeek..endOfWeek
+//                }
+//                .sumOf { (it.durationMinutes ?: 0) / 60.0 * 20.0 } // Replace 20.0 with a dynamic rate later
+//        }
+//        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
 
     // Insert a new entry
@@ -118,12 +136,14 @@ class TimeEntryViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val duration = Duration.between(startTime, endTime).toMinutes()
+            val payRate = hourlyPayFlow.first()
             val entry = TimeEntry(
                 startTime = startTime,
                 endTime = endTime,
                 durationMinutes = duration,
                 isManual = isManual,
-                label = label
+                label = label,
+                hourlyPay = payRate
             )
             repository.insertTimeEntry(entry)
         }
@@ -205,6 +225,8 @@ class TimeEntryViewModel @Inject constructor(
             // 3️⃣ Shifted end time
             val adjustedEndTime = startTime.plusMinutes(totalWorkedMinutes)
 
+            val averagePayRate = entriesToSquish.map { it.hourlyPay }.average()
+
             val squishedEntry = TimeEntry(
                 startTime = startTime,
                 endTime = adjustedEndTime,
@@ -212,8 +234,10 @@ class TimeEntryViewModel @Inject constructor(
                 isManual = true,
                 isSubmitted = false,
                 label = "Squished Block",
-                squishGroupId = groupId
+                squishGroupId = groupId,
+                hourlyPay = averagePayRate // 💵 This fixes the display issue
             )
+
 
             repository.insertTimeEntry(squishedEntry)
 

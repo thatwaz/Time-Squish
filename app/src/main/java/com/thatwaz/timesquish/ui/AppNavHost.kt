@@ -24,15 +24,13 @@ fun AppNavHost(
         startDestination = BottomNavItem.Home.route,
         modifier = modifier
     ) {
-        // HOME TAB
+        // === BOTTOM NAV SCREENS ===
         composable(BottomNavItem.Home.route) {
             HomeScreen(
-                onNavigateToActiveSession = { navController.navigate("activeSession") },
-                onNavigateToUserSettings = { navController.navigate("userSettings") }
+                onNavigateToActiveSession = { navController.navigate("activeSession") }
             )
         }
 
-        // WEEK TAB
         composable(BottomNavItem.Week.route) {
             WeekViewScreen(
                 onNavigateBack = { navController.popBackStack() },
@@ -42,14 +40,20 @@ fun AppNavHost(
             )
         }
 
-        // ENTRIES TAB
         composable(BottomNavItem.Entries.route) {
             ManualEntryScreen(
                 onEntryAdded = { navController.popBackStack() }
             )
         }
 
-        // ACTIVE SESSION (non-tab)
+        composable(BottomNavItem.Settings.route) {
+            UserSettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // === NON-BOTTOM NAV ROUTES ===
+
         composable("activeSession") {
             ActiveSessionScreen(
                 onClockOut = {
@@ -60,7 +64,6 @@ fun AppNavHost(
             )
         }
 
-        // MANUAL ENTRY via edit
         composable(
             route = "manualEntry?entryId={entryId}",
             arguments = listOf(
@@ -76,15 +79,9 @@ fun AppNavHost(
                 onEntryAdded = { navController.popBackStack() }
             )
         }
-
-        // User SETTINGS (non-tab)
-        composable("userSettings") {
-            UserSettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
     }
 }
+
 
 //@Composable
 //fun AppNavHost(

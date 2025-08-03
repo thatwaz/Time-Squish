@@ -7,6 +7,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.thatwaz.timesquish.BottomNavItem
@@ -16,10 +17,12 @@ fun BottomNavBar(navController: NavController) {
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Week,
-        BottomNavItem.Entries
+        BottomNavItem.Entries,
+        BottomNavItem.Settings // 👈 Add settings item
     )
-    val navBackStackEntry = navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry.value?.destination?.route
+
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     NavigationBar {
         items.forEach { item ->
@@ -36,10 +39,10 @@ fun BottomNavBar(navController: NavController) {
                         }
                     }
                 },
-                icon = { Icon(item.icon, contentDescription = null) },
+                icon = { Icon(item.icon, contentDescription = item.label) },
                 label = { Text(item.label) }
-
             )
         }
     }
 }
+
