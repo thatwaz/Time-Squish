@@ -25,6 +25,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.roundToLong
 
 
 @HiltViewModel
@@ -135,7 +136,7 @@ class TimeEntryViewModel @Inject constructor(
         label: String? = null
     ) {
         viewModelScope.launch {
-            val duration = Duration.between(startTime, endTime).toMinutes()
+            val duration = (Duration.between(startTime, endTime).seconds / 60.0).roundToLong()
             val payRate = hourlyPayFlow.first()
             val entry = TimeEntry(
                 startTime = startTime,
@@ -200,7 +201,7 @@ class TimeEntryViewModel @Inject constructor(
             val session = _activeSession.value
             if (session != null) {
                 val end = LocalDateTime.now()
-                val duration = java.time.Duration.between(session.startTime, end).toMinutes()
+                val duration = (Duration.between(session.startTime, end).seconds / 60.0).roundToLong()
                 repository.completeSession(session.id, end, duration)
                 _activeSession.value = null
 

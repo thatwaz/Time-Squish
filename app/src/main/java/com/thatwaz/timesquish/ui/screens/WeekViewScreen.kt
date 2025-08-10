@@ -2,6 +2,7 @@ package com.thatwaz.timesquish.ui.screens
 
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -36,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,12 +63,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-enum class ListMode {
-    NORMAL,
-    SUBMIT,
-    SQUISH,
-    EDIT
-}
+//enum class ListMode {
+//    NORMAL,
+//    SUBMIT,
+//    SQUISH,
+//    EDIT
+//}
 
 
 
@@ -99,99 +101,110 @@ fun WeekViewScreen(
     val unsubmittedEntries = allWeekEntries.filterNot { it.isSubmitted }
     val submittedEntries = allWeekEntries.filter { it.isSubmitted }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    // 🔵 Animate the whole-screen background color
+    val bg by animateColorAsState(targetValue = listMode.bgColor(), label = "modeBg")
+
+    Surface( // <-- this paints the full screen
+        modifier = Modifier.fillMaxSize(),
+        color = bg
     ) {
-        WeekSelector(
-            selectedWeekStart,
-            weeks,
-            isDropdownExpanded.value,
-            onWeekSelected = { selectedWeekStart = it },
-            onExpandChanged = { isDropdownExpanded.value = it }
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ModeButtons(
-            listMode = listMode,
-            onModeChange = { newMode ->
-                listMode = newMode
-                if (newMode != ListMode.SQUISH) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            ModeBanner(
+                mode = listMode,
+                onExit = {
+                    listMode = ListMode.NORMAL
                     selectingDays.value = emptySet()
                     selectedEntryIdsByDay.value = emptyMap()
                 }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        WeeklySummaryRow(allWeekEntries)
-
-        if (allWeekEntries.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No entries this week.")
-            }
-        } else {
-            // 🔴 Unsubmitted Section Label
-            Text(
-                text = "Unsubmitted",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (unsubmittedEntries.isNotEmpty()) Color.Red else MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
 
-            // ✅ Success Banner (Animated)
-            AnimatedVisibility(
-                visible = unsubmittedEntries.isEmpty() && allWeekEntries.isNotEmpty(),
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF4CAF50))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "All submitted",
-                            tint = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("All entries submitted!", color = Color.White)
+            WeekSelector(
+                selectedWeekStart,
+                weeks,
+                isDropdownExpanded.value,
+                onWeekSelected = { selectedWeekStart = it },
+                onExpandChanged = { isDropdownExpanded.value = it }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            ModeButtons(
+                listMode = listMode,
+                onModeChange = { newMode ->
+                    listMode = newMode
+                    if (newMode != ListMode.SQUISH) {
+                        selectingDays.value = emptySet()
+                        selectedEntryIdsByDay.value = emptyMap()
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 🟢 Combined Entries Section
-            CombinedEntriesSection(
-                unsubmitted = unsubmittedEntries.groupBy { it.startTime.toLocalDate() },
-                submitted = submittedEntries.groupBy { it.startTime.toLocalDate() },
-                listMode = listMode,
-                selectingDays = selectingDays,
-                selectedEntryIdsByDay = selectedEntryIdsByDay,
-                onEditEntry = onEditEntry,
-                viewModel = viewModel,
-                onDeleteEntry = { entryPendingDelete = it }
             )
+
+            Spacer(Modifier.height(8.dp))
+
+            WeeklySummaryRow(allWeekEntries)
+
+            if (allWeekEntries.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No entries this week.")
+                }
+            } else {
+                Text(
+                    text = "Unsubmitted",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (unsubmittedEntries.isNotEmpty())
+                        Color.Red
+                    else
+                        MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                AnimatedVisibility(
+                    visible = unsubmittedEntries.isEmpty() && allWeekEntries.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF4CAF50))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.width(8.dp))
+                            Text("All entries submitted!", color = Color.White)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                CombinedEntriesSection(
+                    unsubmitted = unsubmittedEntries.groupBy { it.startTime.toLocalDate() },
+                    submitted = submittedEntries.groupBy { it.startTime.toLocalDate() },
+                    listMode = listMode,
+                    selectingDays = selectingDays,
+                    selectedEntryIdsByDay = selectedEntryIdsByDay,
+                    onEditEntry = onEditEntry,
+                    viewModel = viewModel,
+                    onDeleteEntry = { entryPendingDelete = it }
+                )
+            }
         }
     }
 
-    // Confirm delete dialog
     if (entryPendingDelete != null) {
         ConfirmDeleteDialog(
             onConfirm = {
@@ -202,6 +215,38 @@ fun WeekViewScreen(
         )
     }
 }
+
+
+@Composable
+private fun ModeBanner(
+    mode: ListMode,
+    onExit: () -> Unit
+) {
+    if (mode == ListMode.NORMAL) return
+
+    Surface(
+        color = mode.bannerColor(),
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(mode.icon(), contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = mode.label(),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onExit) { Text("Exit") }
+        }
+    }
+}
+
 
 
 
